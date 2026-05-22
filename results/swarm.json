@@ -1,0 +1,16 @@
+{
+  "topology": "flat_swarm",
+  "summary": "**Central Claim.** Standard long-context benchmarks, by sampling needle positions uniformly across context depth, mask practically important non-monotonic accuracy patterns; depth-stratified evaluation reveals that frontier models' effective context windows are systematically smaller than advertised.\n\n**Method and Why It Works.** The authors introduce depth-stratified evaluation: contexts are partitioned into 12 contiguous strata with 64 needle positions sampled within each, rather than drawn uniformly across the full context. Uniform sampling averages over all positions, suppressing local minima and maxima at intermediate depths; stratification preserves per-region resolution and makes those failures visible. Evaluation uses a paraphrased fact-retrieval setup across five context lengths (16K\u2013200K tokens) and six frontier models (GPT-4 \u00d73, Claude \u00d72, Gemini \u00d71), totaling ~13,800 examples. Code and corpus are released under MIT license.\n\n**Evidence.** Three findings carry specific numbers. First, four of six models exhibit non-monotonic accuracy-vs-depth curves, including interior peaks between 16K\u201364K depth that undermine simple content-placement heuristics. Within a 200K-token context run, Model X peaks at 32K depth then declines to 41% accuracy at the 180K depth stratum. Second, synthetic benchmarks overestimate effective context windows (longest depth retaining \u226590% of peak accuracy) by a reported median of 38%; the paper separately reports a median overestimate ratio of 1.62\u00d7, which would correspond to a 62% overestimate \u2014 an apparent numerical inconsistency the authors do not address. The range spans 1.18\u00d7 to 5.21\u00d7; Model X's advertised 1M-token window yields an effective window of only 192K. Third, two models with identical 95% peak accuracy at 32K diverged at 128K \u2014 one holding at 87%, the other collapsing to 52% \u2014 a gap invisible to position-averaged leaderboard scores.\n\n**Limitations.** Results are restricted to English, single-fact paraphrased retrieval rather than reasoning or aggregation tasks, six discrete context lengths, and exact-match scoring. Variable prompt-caching across providers and no control for model release date are additional caveats.\n\n**Open Question.** Whether non-monotonic depth effects intensify or shift for tasks requiring aggregation across many dispersed positions remains untested, and the architecture-level mechanisms producing interior accuracy peaks are entirely unexplained.",
+  "llm_calls": 9,
+  "total_cost_usd": 0.196,
+  "total_input_tokens": 37180,
+  "total_output_tokens": 5634,
+  "total_latency_s": 105.31,
+  "agent_order": [
+    "researcher",
+    "critic",
+    "editor"
+  ],
+  "max_turns": 9,
+  "terminated_via_final_summary_prefix": true
+}
