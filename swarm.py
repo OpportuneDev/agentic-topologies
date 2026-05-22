@@ -79,6 +79,7 @@ def run() -> dict:
     total_input = 0
     total_output = 0
     final_summary: str | None = None
+    terminated_via_prefix = False
 
     for turn in range(MAX_TURNS):
         agent_name = ORDER[turn % len(ORDER)]
@@ -112,6 +113,7 @@ def run() -> dict:
 
         if agent_name == "editor" and "FINAL_SUMMARY:" in result["text"]:
             final_summary = result["text"].split("FINAL_SUMMARY:", 1)[1].strip()
+            terminated_via_prefix = True
             break
 
     if final_summary is None:
@@ -134,7 +136,7 @@ def run() -> dict:
         "total_latency_s": round(total_latency, 2),
         "agent_order": ORDER,
         "max_turns": MAX_TURNS,
-        "terminated_via_final_summary_prefix": "FINAL_SUMMARY:" in (final_summary or ""),
+        "terminated_via_final_summary_prefix": terminated_via_prefix,
     }
 
 
