@@ -14,6 +14,19 @@ No frameworks. Plain Python + the Anthropic SDK. The whole point of the post tha
 
 ---
 
+## Try it interactively
+
+There's a **bring-your-own-key Streamlit demo** in `webapp/`. Paste your Anthropic key, choose which topologies to run against any paper, and watch the comparison table populate live.
+
+```bash
+pip install -r webapp/requirements.txt
+streamlit run webapp/app.py
+```
+
+Deploy your own copy to [Streamlit Cloud](https://share.streamlit.io/) for free — point it at this repo, main file `webapp/app.py`, done. Full deploy guide in [`webapp/README.md`](webapp/README.md).
+
+---
+
 ## The three topologies
 
 **Pipeline** — a fixed sequence where each step does one thing. Predictable, debuggable, cheap to evaluate. Most production "agent" systems should be pipelines whether their builders call them that or not.
@@ -142,6 +155,10 @@ agentic-topologies/
 │   ├── test_orchestrator.py
 │   ├── test_swarm.py
 │   └── test_run_all.py
+├── webapp/                   # Streamlit BYOK demo (deploy to Streamlit Cloud)
+│   ├── app.py
+│   ├── requirements.txt
+│   └── README.md
 ├── results/                  # JSON outputs populated after running
 ├── requirements.txt          # runtime: anthropic
 ├── requirements-dev.txt      # runtime + pytest
