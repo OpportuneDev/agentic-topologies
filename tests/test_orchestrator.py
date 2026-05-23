@@ -178,6 +178,85 @@ def test_orchestrator_unknown_tool_raises():
             raise AssertionError("expected ValueError for unknown tool")
 
 
+def test_orchestrator_returns_interleaved_steps():
+    """Happy path: 3 orchestrator turns + 3 specialist calls + 1 compose specialist +
+    1 finish marker = 8 entries (the finish marker is non-LLM)."""
+    responses = [
+        _fake_response(
+            content_blocks=[
+                _tool_use_block("extract_claim", {}, "tu1"),
+                _tool_use_block("extract_evidence", {}, "tu2"),
+                _tool_use_block("extract_limitations", {}, "tu3"),
+            ]
+        ),
+        _fake_response(
+            content_blocks=[
+                _tool_use_block(
+                    "compose_summary",
+                    {"claim": "c", "evidence": "e", "limitations": "l"},
+                    "tu4",
+                )
+            ]
+        ),
+        _fake_response(
+            content_blocks=[_tool_use_block("finish", {"summary": "Done."}, "tu5")]
+        ),
+    ]
+    mock_client = _make_scripted_client(responses)
+
+    with patch("orchestrator.client", return_value=mock_client), patch(
+        "orchestrator.call", return_value=fake_llm_result()
+    ):
+        result = orchestrator.run()
+
+    assert "steps" in result
+    steps = result["steps"]
+
+    kinds = [s["kind"] for s in steps]
+    # Turn 1, then 3 specialists, then turn 2, then 1 specialist,
+    # then turn 3, then the finish marker.
+    assert kinds == [
+        "orchestrator",
+        "specialist",
+        "specialist",
+        "specialist",
+        "orchestrator",
+        "specialist",
+        "orchestrator",
+        "control",
+    ]
+
+
+def test_orchestrator_accepts_custom_paper():
+    """`run(paper=...)` should pass the custom text into the orchestrator's first
+    message and into specialist calls that operate on the paper."""
+    responses = [
+        _fake_response(content_blocks=[_tool_use_block("extract_claim", {}, "tu1")]),
+        _fake_response(
+            content_blocks=[_tool_use_block("finish", {"summary": "ok"}, "tu2")]
+        ),
+    ]
+    mock_client = _make_scripted_client(responses)
+
+    seen_specialist_prompts: list[str] = []
+
+    def capture_specialist_call(messages, system=None, **kwargs):
+        seen_specialist_prompts.append(messages[0]["content"])
+        return fake_llm_result(text="extracted")
+
+    with patch("orchestrator.client", return_value=mock_client), patch(
+        "orchestrator.call", side_effect=capture_specialist_call
+    ):
+        orchestrator.run(paper="ORCH_PAPER_MARKER_qwerty")
+
+    # The orchestrator's first user message should include the paper.
+    first_create_call = mock_client.messages.create.call_args_list[0]
+    first_user_msg = first_create_call.kwargs["messages"][0]["content"]
+    assert "ORCH_PAPER_MARKER_qwerty" in first_user_msg
+    # And the dispatched specialist saw the paper too.
+    assert any("ORCH_PAPER_MARKER_qwerty" in p for p in seen_specialist_prompts)
+
+
 def test_orchestrator_specialist_dispatch():
     """Each specialist tool name routes to its corresponding Python function."""
     paper = "fake paper text"

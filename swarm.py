@@ -70,9 +70,10 @@ def _format_scratchpad(scratchpad: list[tuple[str, str]]) -> str:
     return "\n\n".join(f"[{name}]:\n{content}" for name, content in scratchpad)
 
 
-def run() -> dict:
+def run(paper: str | None = None) -> dict:
     t0 = time.time()
-    paper = load_paper()
+    if paper is None:
+        paper = load_paper()
 
     scratchpad: list[tuple[str, str]] = []
     total_cost = 0.0
@@ -80,6 +81,7 @@ def run() -> dict:
     total_output = 0
     final_summary: str | None = None
     terminated_via_prefix = False
+    steps: list[dict] = []
 
     for turn in range(MAX_TURNS):
         agent_name = ORDER[turn % len(ORDER)]
@@ -104,6 +106,18 @@ def run() -> dict:
         total_input += result["input_tokens"]
         total_output += result["output_tokens"]
         scratchpad.append((agent_name, result["text"]))
+
+        steps.append(
+            {
+                "label": f"Turn {turn + 1}: {agent_name}",
+                "kind": "llm",
+                "agent": agent_name,
+                "input_tokens": result["input_tokens"],
+                "output_tokens": result["output_tokens"],
+                "cost_usd": round(result["cost_usd"], 6),
+                "latency_s": round(result["latency_s"], 2),
+            }
+        )
 
         print(
             f"→ Turn {turn + 1} [{agent_name}]: "
@@ -137,6 +151,7 @@ def run() -> dict:
         "agent_order": ORDER,
         "max_turns": MAX_TURNS,
         "terminated_via_final_summary_prefix": terminated_via_prefix,
+        "steps": steps,
     }
 
 

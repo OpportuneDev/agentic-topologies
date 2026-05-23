@@ -170,9 +170,10 @@ def _dispatch(tool_name: str, tool_input: dict[str, Any], paper: str) -> tuple[s
     raise ValueError(f"Unknown tool: {tool_name}")
 
 
-def run(max_turns: int = 12) -> dict:
+def run(paper: str | None = None, max_turns: int = 12) -> dict:
     t0 = time.time()
-    paper = load_paper()
+    if paper is None:
+        paper = load_paper()
 
     messages: list[dict[str, Any]] = [
         {
@@ -186,6 +187,7 @@ def run(max_turns: int = 12) -> dict:
     total_output = 0
     llm_calls = 0
     final_summary: str | None = None
+    steps: list[dict] = []
 
     cli = client()
 
@@ -198,15 +200,32 @@ def run(max_turns: int = 12) -> dict:
             tools=TOOLS,
             messages=messages,
         )
+        turn_latency = time.time() - t_call
         llm_calls += 1
         total_input += response.usage.input_tokens
         total_output += response.usage.output_tokens
-        total_cost += (
+        turn_cost = (
             response.usage.input_tokens * 3 + response.usage.output_tokens * 15
         ) / 1_000_000
+        total_cost += turn_cost
 
         tool_uses = [b for b in response.content if b.type == "tool_use"]
-        print(f"→ Turn {turn + 1}: stop_reason={response.stop_reason}, tools_called={[t.name for t in tool_uses]}")
+        tool_names = [t.name for t in tool_uses]
+        steps.append(
+            {
+                "label": (
+                    f"Orchestrator turn {turn + 1}"
+                    + (f" → asks for: {', '.join(tool_names)}" if tool_names else " (no tools)")
+                ),
+                "kind": "orchestrator",
+                "tools": tool_names,
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "cost_usd": round(turn_cost, 6),
+                "latency_s": round(turn_latency, 2),
+            }
+        )
+        print(f"→ Turn {turn + 1}: stop_reason={response.stop_reason}, tools_called={tool_names}")
 
         if response.stop_reason == "end_turn" or not tool_uses:
             break
@@ -224,6 +243,17 @@ def run(max_turns: int = 12) -> dict:
                         "content": "Task complete.",
                     }
                 )
+                steps.append(
+                    {
+                        "label": "  ↳ finish (orchestrator returned final summary)",
+                        "kind": "control",
+                        "tool": "finish",
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cost_usd": 0.0,
+                        "latency_s": 0.0,
+                    }
+                )
             else:
                 text, meta = _dispatch(tu.name, tu.input, paper)
                 llm_calls += 1
@@ -232,6 +262,17 @@ def run(max_turns: int = 12) -> dict:
                 total_cost += meta["cost_usd"]
                 tool_results.append(
                     {"type": "tool_result", "tool_use_id": tu.id, "content": text}
+                )
+                steps.append(
+                    {
+                        "label": f"  ↳ specialist: {tu.name}",
+                        "kind": "specialist",
+                        "tool": tu.name,
+                        "input_tokens": meta["input_tokens"],
+                        "output_tokens": meta["output_tokens"],
+                        "cost_usd": round(meta["cost_usd"], 6),
+                        "latency_s": round(meta["latency_s"], 2),
+                    }
                 )
 
         messages.append({"role": "user", "content": tool_results})
@@ -249,6 +290,7 @@ def run(max_turns: int = 12) -> dict:
         "total_input_tokens": total_input,
         "total_output_tokens": total_output,
         "total_latency_s": round(total_latency, 2),
+        "steps": steps,
     }
 
 

@@ -80,6 +80,32 @@ def test_swarm_falls_back_to_last_editor_turn_if_no_prefix():
     assert result["terminated_via_final_summary_prefix"] is False
 
 
+def test_swarm_returns_step_per_turn():
+    with patch("swarm.call", return_value=fake_llm_result()):
+        result = swarm.run()
+
+    assert "steps" in result
+    assert len(result["steps"]) == result["llm_calls"]
+    # The agent on step N must be ORDER[N % 3].
+    for i, step in enumerate(result["steps"]):
+        assert step["agent"] == swarm.ORDER[i % 3]
+        assert step["kind"] == "llm"
+
+
+def test_swarm_accepts_custom_paper():
+    seen_prompts: list[str] = []
+
+    def capture(messages, system=None, **kwargs):
+        seen_prompts.append(messages[0]["content"])
+        return fake_llm_result(text="draft")
+
+    with patch("swarm.call", side_effect=capture):
+        swarm.run(paper="SWARM_MARKER_abc789")
+
+    # Every turn embeds the paper, so the marker must appear on every prompt.
+    assert all("SWARM_MARKER_abc789" in p for p in seen_prompts)
+
+
 def test_swarm_scratchpad_grows_each_turn():
     """Each later turn should see input tokens that grow with the scratchpad."""
     input_sizes: list[int] = []

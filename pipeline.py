@@ -72,9 +72,21 @@ def step_compose_summary(claim_block: str, evidence_block: str) -> dict:
     )
 
 
-def run() -> dict:
+def _step_summary(label: str, kind: str, result: dict) -> dict:
+    return {
+        "label": label,
+        "kind": kind,
+        "input_tokens": result["input_tokens"],
+        "output_tokens": result["output_tokens"],
+        "cost_usd": round(result["cost_usd"], 6),
+        "latency_s": round(result["latency_s"], 2),
+    }
+
+
+def run(paper: str | None = None) -> dict:
     t0 = time.time()
-    paper = load_paper()
+    if paper is None:
+        paper = load_paper()
 
     print("→ Step 1: extract claim and mechanism")
     s1 = step_extract_claim_and_mechanism(paper)
@@ -84,6 +96,12 @@ def run() -> dict:
 
     print("→ Step 3: compose summary")
     s3 = step_compose_summary(s1["text"], s2["text"])
+
+    steps = [
+        _step_summary("1. Extract claim and mechanism", "llm", s1),
+        _step_summary("2. Extract evidence and limitations", "llm", s2),
+        _step_summary("3. Compose 300-word summary", "llm", s3),
+    ]
 
     total_cost = s1["cost_usd"] + s2["cost_usd"] + s3["cost_usd"]
     total_input = s1["input_tokens"] + s2["input_tokens"] + s3["input_tokens"]
@@ -98,6 +116,7 @@ def run() -> dict:
         "total_input_tokens": total_input,
         "total_output_tokens": total_output,
         "total_latency_s": round(total_latency, 2),
+        "steps": steps,
     }
 
 
